@@ -98,7 +98,7 @@ static int __exit exit_mymodule(void)
 //	printk("j_time : %llu, j_count : %llu\n", j_time, j_count);
 //	printk("k_time : %llu, k_count : %llu\n", k_time, k_count);
 //	printk("l_time : %llu, l_count : %llu\n", l_time, l_count);
-	printk("add_pagevec-------- : %llu, m_count : %llu\n", m_time, m_count);
+	printk("add_pagevec:%llu", m_time); //, m_count : %llu\n", m_time, m_count);
 	
 	return 0;
 }

@@ -1,6 +1,6 @@
 #include <linux/time.h>
 #define BILLION 1000000000
-#define NUMCORE 64
+#define NUMCORE 68
 #define calclock(timevalue, total_time, total_count) do{      \
     unsigned long long timedelay, temp, temp_n;               \
     struct timespec *myclock = (struct timespec*)timevalue;   \

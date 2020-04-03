@@ -266,7 +266,7 @@ enum lru_list {
 	NR_LRU_LISTS
 };
 
-#define JW_FACTOR 8
+#define JW_FACTOR 1
 
 #define jw_for_each_lru(lru) for (lru = 0; lru < NR_LRU_LISTS*JW_FACTOR; lru++)
 

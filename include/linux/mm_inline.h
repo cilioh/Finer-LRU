@@ -69,8 +69,9 @@ static __always_inline void del_page_from_lru_list(struct page *page,
 static enum lru_list jw_get_lru_idx(struct page *page, enum lru_list lru)
 {
 // 1&2 together --> kernel panic
-//  if(lru == 1)
-   return lru + NR_LRU_LISTS*(page->idx);
+//  if(lru == 2 || lru == 3)
+//  if(lru == 0 || lru == 1)
+    return lru + NR_LRU_LISTS*(page->idx);
 //  else
 //    return lru;
 }
