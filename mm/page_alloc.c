@@ -1296,10 +1296,11 @@ static void __meminit __init_single_page(struct page *page, unsigned long pfn,
 	page_kasan_tag_reset(page);
 
 	INIT_LIST_HEAD(&page->lru);
+
+//jiwoo
+	unsigned int rand_int = get_random_int();
+	page->idx = rand_int%JW_FACTOR;
 	
-//	page->idx = (int)(idx%JW_FACTOR);
-//	idx++;
- 	page->idx = (int)(abs((int)(((long)page%100000000)%11)%JW_FACTOR));
 #ifdef WANT_PAGE_VIRTUAL
 	/* The shift won't overflow because ZONE_NORMAL is below 4G. */
 	if (!is_highmem_idx(zone))
