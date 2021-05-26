@@ -104,6 +104,9 @@ void mlock_vma_page(struct page *page)
 	}
 }
 
+//finer_modi
+//the functions are modified to use the finer locks
+
 /*
  * Isolate a page from LRU with optional get_page() pin.
  * Assumes lru_lock already held and page already pinned.
@@ -120,13 +123,13 @@ static bool __munlock_isolate_lru_page(struct page *page, bool getpage)
 //if(i%10000 == 0)
 //  printk("jw: __munlock_isolate_lru_page [%ld]\n", (int)(current->pid));
 //i++;
-    //int prev_lru = jw_get_lru_idx(page, page_lru(page));
-    spin_lock_irq(&lruvec->jw_lruvec_lock[jw_get_lru_idx(page, page_lru(page))]);
-	  //spin_lock_irq(&lruvec->jw_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
+    //int prev_lru = finer_get_lru_idx(page, page_lru(page));
+    spin_lock_irq(&lruvec->finer_lruvec_lock[finer_get_lru_idx(page, page_lru(page))]);
+	  //spin_lock_irq(&lruvec->finer_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
 		//del_page_from_lru_list(page, lruvec, page_lru(page) + NR_LRU_LISTS*(page->idx));
-		del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, page_lru(page)));
-    spin_unlock_irq(&lruvec->jw_lruvec_lock[jw_get_lru_idx(page, page_lru(page))]);
-	  //spin_unlock_irq(&lruvec->jw_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
+		del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, page_lru(page)));
+    spin_unlock_irq(&lruvec->finer_lruvec_lock[finer_get_lru_idx(page, page_lru(page))]);
+	  //spin_unlock_irq(&lruvec->finer_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
 		return true;
 	}
 
@@ -213,7 +216,7 @@ unsigned int munlock_vma_page(struct page *page)
 //j++;
 //  lruvec = mem_cgroup_lruvec(page, page_pgdat(page));
 //  prev_lru = page_lru(page) + NR_LRU_LISTS*(page->idx);
-//  spin_lock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//  spin_lock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 
 	if (!TestClearPageMlocked(page)) {
 		/* Potentially, PTE-mapped THP: do not skip the rest PTEs */
@@ -225,7 +228,7 @@ unsigned int munlock_vma_page(struct page *page)
 	__mod_zone_page_state(page_zone(page), NR_MLOCK, -nr_pages);
 
 	if (__munlock_isolate_lru_page(page, true)) {
-//    spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//    spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 		spin_unlock_irq(&pgdat->lru_lock);
 		__munlock_isolated_page(page);
 		goto out;
@@ -233,7 +236,7 @@ unsigned int munlock_vma_page(struct page *page)
 	__munlock_isolation_failed(page);
 
 unlock_out:
-//  spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//  spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 	spin_unlock_irq(&pgdat->lru_lock);
 
 out:
@@ -336,11 +339,11 @@ static void __munlock_pagevec(struct pagevec *pvec, struct zone *zone)
 			 * so we can spare the get_page() here.
 			 */
 //      if(prev_lru >= 0)
-//        spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//        spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 //      prev_lru = page_lru(page) + NR_LRU_LISTS*(page->idx);
-//      spin_lock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//      spin_lock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 			if (__munlock_isolate_lru_page(page, false)){
-//        spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//        spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 				continue;
       }
 			else
@@ -359,7 +362,7 @@ static void __munlock_pagevec(struct pagevec *pvec, struct zone *zone)
 		pvec->pages[i] = NULL;
 	}
 //  if(prev_lru >= 0)
-//    spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+//    spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 	__mod_zone_page_state(zone, NR_MLOCK, delta_munlocked);
 	spin_unlock_irq(&zone->zone_pgdat->lru_lock);
 

@@ -1297,9 +1297,10 @@ static void __meminit __init_single_page(struct page *page, unsigned long pfn,
 
 	INIT_LIST_HEAD(&page->lru);
 
-//jiwoo
+//finer_modi
+//randomize index value in page structure
 	unsigned int rand_int = get_random_int();
-	page->idx = rand_int%JW_FACTOR;
+	page->idx = rand_int%FINER_FACTOR;
 	
 #ifdef WANT_PAGE_VIRTUAL
 	/* The shift won't overflow because ZONE_NORMAL is below 4G. */

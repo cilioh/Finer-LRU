@@ -266,9 +266,13 @@ enum lru_list {
 	NR_LRU_LISTS
 };
 
-#define JW_FACTOR 1
+//finer_modi
+//Number of splits for each LRU lists
+#define FINER_FACTOR 8
 
-#define jw_for_each_lru(lru) for (lru = 0; lru < NR_LRU_LISTS*JW_FACTOR; lru++)
+//finer_modi
+//Iterates the split LRU lists
+#define finer_for_each_lru(lru) for (lru = 0; lru < NR_LRU_LISTS*FINER_FACTOR; lru++)
 
 #define for_each_lru(lru) for (lru = 0; lru < NR_LRU_LISTS; lru++)
 
@@ -298,9 +302,11 @@ struct zone_reclaim_stat {
 };
 
 struct lruvec {
-	struct list_head		lists[NR_LRU_LISTS*JW_FACTOR];
-  spinlock_t          jw_lruvec_lock[NR_LRU_LISTS*JW_FACTOR];
-//  int                 jw_count[NR_LRU_LISTS*JW_FACTOR];
+	struct list_head		lists[NR_LRU_LISTS*FINER_FACTOR];
+  //finer_modi
+  //spinlock for each split LRU lists
+  spinlock_t          finer_lruvec_lock[NR_LRU_LISTS*FINER_FACTOR];
+//  int                 jw_count[NR_LRU_LISTS*FINER_FACTOR];
 	struct zone_reclaim_stat	reclaim_stat;
 	/* Evictions & activations on the inactive file list */
 	atomic_long_t			inactive_age;

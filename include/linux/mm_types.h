@@ -93,7 +93,9 @@ struct page {
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
 			unsigned long private;
-      int idx;
+      //finer_modi
+      //index variable added to the page structure
+      unsigned char idx;
 		};
 		struct {	/* page_pool used by netstack */
 			/**

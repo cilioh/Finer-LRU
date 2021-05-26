@@ -1754,6 +1754,9 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
  * (2) the lru_lock must not be held.
  * (3) interrupts must be enabled.
  */
+
+ //finer_modi
+ //the functions are modified to use the finer locks
 int isolate_lru_page(struct page *page)
 {
 	int ret = -EBUSY;
@@ -1776,11 +1779,11 @@ int isolate_lru_page(struct page *page)
 //  printk("jw: isolate_lru_page [%ld]\n", (int)(current->pid));
 //l++;
       //prev_lru = lru + NR_LRU_LISTS*(page->idx);
-      prev_lru = jw_get_lru_idx(page, lru);
-      spin_lock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+      prev_lru = finer_get_lru_idx(page, lru);
+      spin_lock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
       //del_page_from_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
-			del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
-      spin_unlock_irq(&lruvec->jw_lruvec_lock[prev_lru]);
+			del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
+      spin_unlock_irq(&lruvec->finer_lruvec_lock[prev_lru]);
 			ret = 0;
 		}
 //		spin_unlock_irq(&pgdat->lru_lock);
@@ -1881,7 +1884,7 @@ static unsigned noinline_for_stack move_pages_to_lru(struct lruvec *lruvec,
 			__ClearPageLRU(page);
 			__ClearPageActive(page);
 			//del_page_from_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
-      del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+      del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
 
 			if (unlikely(PageCompound(page))) {
 				spin_unlock_irq(&pgdat->lru_lock);
@@ -4264,8 +4267,8 @@ void check_move_unevictable_pages(struct pagevec *pvec)
 			ClearPageUnevictable(page);
 			//del_page_from_lru_list(page, lruvec, LRU_UNEVICTABLE + NR_LRU_LISTS*(page->idx));
 			//add_page_to_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
-	    del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, LRU_UNEVICTABLE));
-			add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+	    del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, LRU_UNEVICTABLE));
+			add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
 
 			pgrescued++;
 		}

@@ -2460,6 +2460,9 @@ static void cancel_charge(struct mem_cgroup *memcg, unsigned int nr_pages)
 	css_put_many(&memcg->css, nr_pages);
 }
 
+//finer_modi
+//the functions are modified to use the finer locks
+
 static void lock_page_lru(struct page *page, int *isolated)
 {
 	pg_data_t *pgdat = page_pgdat(page);
@@ -2469,14 +2472,14 @@ static void lock_page_lru(struct page *page, int *isolated)
 		struct lruvec *lruvec;
 
 //		lruvec = mem_cgroup_page_lruvec(page, pgdat);
-  //  spin_lock_irq(&lruvec->jw_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
+  //  spin_lock_irq(&lruvec->finer_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
 //if(g%10000 == 0)
 //  printk("jw: lock_page_lru [%ld]\n", (int)(current->pid));
 //g++;
 	
 		ClearPageLRU(page);
 		//del_page_from_lru_list(page, lruvec, page_lru(page) + NR_LRU_LISTS*(page->idx));
-	  del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, page_lru(page)));
+	  del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, page_lru(page)));
 
 		*isolated = 1;
 	} else
@@ -2497,11 +2500,11 @@ static void unlock_page_lru(struct page *page, int isolated)
 //h++;
 	
 		//add_page_to_lru_list(page, lruvec, page_lru(page) + NR_LRU_LISTS*(page->idx));
-		add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, page_lru(page)));
+		add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, page_lru(page)));
 	
 	}
 //  if(lruvec != NULL)
-//    spin_unlock_irq(&lruvec->jw_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
+//    spin_unlock_irq(&lruvec->finer_lruvec_lock[page_lru(page) + NR_LRU_LISTS*(page->idx)]);
 	spin_unlock_irq(&pgdat->lru_lock);
 }
 

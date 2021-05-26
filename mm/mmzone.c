@@ -86,16 +86,19 @@ bool memmap_valid_within(unsigned long pfn,
 }
 #endif /* CONFIG_ARCH_HAS_HOLES_MEMORYMODEL */
 
+//finer_modi
+// change lruvec initialization function to have
+// multiple LRU lists and spin lock instances
 void lruvec_init(struct lruvec *lruvec)
 {
 	enum lru_list lru;
 
 	memset(lruvec, 0, sizeof(struct lruvec));
 
-	jw_for_each_lru(lru) {
+	finer_for_each_lru(lru) {
 		INIT_LIST_HEAD(&lruvec->lists[lru]);
-  //jw_for_each_lru(lru)
-    spin_lock_init(&lruvec->jw_lruvec_lock[lru]);
+  //finer_for_each_lru(lru)
+    spin_lock_init(&lruvec->finer_lruvec_lock[lru]);
 //    lruvec->jw_count[lru] = 0;
   }
 }

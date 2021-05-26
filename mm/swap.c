@@ -103,6 +103,10 @@ static DEFINE_PER_CPU(struct pagevec, lru_lazyfree_pvecs);
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
 #endif
 
+//finer_modi
+//the algorithm of the page movement auxiliary functions 
+//are all modified in this code
+
 /*
  * This path almost never happens for VM activity - pages are normally
  * freed via pagevecs.  But it gets used by networking.
@@ -112,23 +116,23 @@ static void __page_cache_release(struct page *page)
 	if (PageLRU(page)) {
 		pg_data_t *pgdat = page_pgdat(page);
 		struct lruvec *lruvec;
-		unsigned long flags = 0, jwflags = 0;
+		unsigned long flags = 0, finer_flags = 0;
     int prev_lru = -1;
 
 //		spin_lock_irqsave(&pgdat->lru_lock, flags);
 		lruvec = mem_cgroup_page_lruvec(page, pgdat);
 		VM_BUG_ON_PAGE(!PageLRU(page), page);
 		__ClearPageLRU(page);
-    //prev_lru = jw_page_off_lru(page) + NR_LRU_LISTS*(page->idx);
-    prev_lru = jw_get_lru_idx(page, jw_page_off_lru(page));
-    spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+    //prev_lru = finer_page_off_lru(page) + NR_LRU_LISTS*(page->idx);
+    prev_lru = finer_get_lru_idx(page, finer_page_off_lru(page));
+    spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
 //if(a%10000 == 0)
 //  printk("jw: __page_cache_release [%ld]\n", (int)(current->pid));
 //a++;
 		//del_page_from_lru_list(page, lruvec, page_off_lru(page) + NR_LRU_LISTS*(page->idx));
- 		del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, page_off_lru(page)));
+ 		del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, page_off_lru(page)));
      
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
 //		spin_unlock_irqrestore(&pgdat->lru_lock, flags);
 	}
 	__ClearPageWaiters(page);
@@ -299,8 +303,8 @@ static void add_pagevec_lru_move_fn(struct pagevec *pvec,
 	int i;
 	struct pglist_data *pgdat = NULL;
 	struct lruvec *lruvec;
-  struct lruvec *jwlruvec = NULL;
-	unsigned long flags = 0, jwflags = 0;
+  struct lruvec *finer_lruvec = NULL;
+	unsigned long flags = 0, finer_flags = 0;
   struct page *page;
   enum lru_list lru;
   int was_unevictable;
@@ -332,12 +336,12 @@ static void add_pagevec_lru_move_fn(struct pagevec *pvec,
 
     if (page_evictable(page)) {
       lru = page_lru(page);
-      if(jwlruvec != lruvec) {
+      if(finer_lruvec != lruvec) {
         if(prev_lru >= 0){
-          spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[prev_lru], jwflags);
+          spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[prev_lru], finer_flags);
           prev_lru = -1;
         }
-        jwlruvec = lruvec;
+        finer_lruvec = lruvec;
       }
       update_page_reclaim_stat(lruvec, page_is_file_cache(page),
           PageActive(page));
@@ -345,12 +349,12 @@ static void add_pagevec_lru_move_fn(struct pagevec *pvec,
         count_vm_event(UNEVICTABLE_PGRESCUED);
     } else {
       lru = LRU_UNEVICTABLE;
-      if(jwlruvec != lruvec) {
-        if(jwlruvec != NULL && prev_lru >= 0){
-          spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[prev_lru], jwflags);
+      if(finer_lruvec != lruvec) {
+        if(finer_lruvec != NULL && prev_lru >= 0){
+          spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[prev_lru], finer_flags);
           prev_lru = -1;
         }
-        jwlruvec = lruvec;
+        finer_lruvec = lruvec;
       }
       ClearPageActive(page);
       SetPageUnevictable(page);
@@ -359,24 +363,24 @@ static void add_pagevec_lru_move_fn(struct pagevec *pvec,
     }
 
     //if(prev_lru != lru + NR_LRU_LISTS*(page->idx)) {
-    if(prev_lru != jw_get_lru_idx(page, lru)) {
+    if(prev_lru != finer_get_lru_idx(page, lru)) {
       if(lruvec != NULL && prev_lru >= 0)
-        spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+        spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
       //prev_lru = lru + NR_LRU_LISTS*(page->idx);
-      prev_lru = jw_get_lru_idx(page, lru);
-      spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+      prev_lru = finer_get_lru_idx(page, lru);
+      spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
     }
 //if(b%10000 == 0)
 //  printk("jw: add_pagevec_lru_move_fn [%ld]\n", (int)(current->pid));
 //b++;
 	
     //add_page_to_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
-    add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+    add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
   
     trace_mm_lru_insertion(page, lru);
 	}
   if(lruvec != NULL && prev_lru >= 0)
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
 //	if (pgdat)
 //		spin_unlock_irqrestore(&pgdat->lru_lock, flags);
 
@@ -396,8 +400,8 @@ static void tail_pagevec_lru_move_fn(struct pagevec *pvec,
 	int i;
 	struct pglist_data *pgdat = NULL;
 	struct lruvec *lruvec;
-  struct lruvec *jwlruvec = NULL;
-	unsigned long flags = 0, jwflags = 0;
+  struct lruvec *finer_lruvec = NULL;
+	unsigned long flags = 0, finer_flags = 0;
   struct page *page;
 //  struct pglist_data *pagepgdat;
   int *pgmoved;
@@ -415,38 +419,38 @@ static void tail_pagevec_lru_move_fn(struct pagevec *pvec,
 		}
 */
     lruvec = mem_cgroup_page_lruvec(page, page_pgdat(page));
-    if(jwlruvec != lruvec){
-      if(jwlruvec != NULL && prev_lru >= 0) {
-        spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[prev_lru], jwflags);
+    if(finer_lruvec != lruvec){
+      if(finer_lruvec != NULL && prev_lru >= 0) {
+        spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[prev_lru], finer_flags);
         prev_lru = -1;
       }
-      jwlruvec = lruvec;
+      finer_lruvec = lruvec;
     }
 
     pgmoved = arg;
 
     if (PageLRU(page) && !PageUnevictable(page)) {
       //if(prev_lru != page_lru(page) + NR_LRU_LISTS*(page->idx)) {
-      if(prev_lru != jw_get_lru_idx(page, page_lru(page))) {
+      if(prev_lru != finer_get_lru_idx(page, page_lru(page))) {
         if(lruvec != NULL && prev_lru >= 0)
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
-        prev_lru = jw_get_lru_idx(page, page_lru(page));
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
+        prev_lru = finer_get_lru_idx(page, page_lru(page));
         //prev_lru = page_lru(page) + NR_LRU_LISTS*(page->idx);
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
       }
 //if(c%10000 == 0)
 //  printk("jw: tail_pagevec_lru_move_fn [%ld]\n", (int)(current->pid));
 //c++;
-      del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, page_lru(page)));
+      del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, page_lru(page)));
       //del_page_from_lru_list(page, lruvec, page_lru(page) + NR_LRU_LISTS*(page->idx));
       ClearPageActive(page);
-      add_page_to_lru_list_tail(page, lruvec, jw_get_lru_idx(page, page_lru(page)));
+      add_page_to_lru_list_tail(page, lruvec, finer_get_lru_idx(page, page_lru(page)));
       //add_page_to_lru_list_tail(page, lruvec, page_lru(page) + NR_LRU_LISTS*(page->idx));
       (*pgmoved)++;
     }
 	}
   if(lruvec != NULL && prev_lru >= 0)
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
 //	if (pgdat)
 //		spin_unlock_irqrestore(&pgdat->lru_lock, flags);
 	release_pages(pvec->pages, pvec->nr);
@@ -459,8 +463,8 @@ static void activate_pagevec_lru_move_fn(struct pagevec *pvec,
 	int i;
 	struct pglist_data *pgdat = NULL;
 	struct lruvec *lruvec;
-  struct lruvec *jwlruvec = NULL;
-	unsigned long flags = 0, jwflags = 0, jwflags_ = 0;
+  struct lruvec *finer_lruvec = NULL;
+	unsigned long flags = 0, finer_flags = 0, finer_flags_ = 0;
   int prev_lru = -1, pprev_lru = -1;
   struct page *page;
 //  struct pglist_data *pagepgdat;
@@ -478,42 +482,42 @@ static void activate_pagevec_lru_move_fn(struct pagevec *pvec,
 		}
 */
     lruvec = mem_cgroup_page_lruvec(page, page_pgdat(page));
-    if(jwlruvec != lruvec) {
-      if(jwlruvec != NULL && pprev_lru >= 0) {
-        spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[prev_lru], jwflags_);
-        spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[pprev_lru], jwflags);
+    if(finer_lruvec != lruvec) {
+      if(finer_lruvec != NULL && pprev_lru >= 0) {
+        spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
+        spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
         prev_lru = -1;
         pprev_lru = -1;
       }
-      jwlruvec = lruvec;
+      finer_lruvec = lruvec;
     }
 
     if (PageLRU(page) && !PageActive(page) && !PageUnevictable(page)) {
       file = page_is_file_cache(page);
       lru = page_lru_base_type(page);
 
-      if(pprev_lru != jw_get_lru_idx(page, lru)) {
+      if(pprev_lru != finer_get_lru_idx(page, lru)) {
       //if(pprev_lru != lru + NR_LRU_LISTS*(page->idx)) {
         if(lruvec != NULL && pprev_lru >= 0) {
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
         }
-        pprev_lru = jw_get_lru_idx(page, lru);
+        pprev_lru = finer_get_lru_idx(page, lru);
         //pprev_lru = lru + NR_LRU_LISTS*(page->idx);
-        prev_lru = jw_get_lru_idx(page, lru + LRU_ACTIVE);
+        prev_lru = finer_get_lru_idx(page, lru + LRU_ACTIVE);
         //prev_lru = pprev_lru + LRU_ACTIVE;
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
       }
 //if(d%10000 == 0)
 //  printk("jw: activate_pagevec_lru_move_fn [%ld]\n", (int)(current->pid));
 //d++;
  
-      del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+      del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
       //del_page_from_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
       SetPageActive(page);
       lru += LRU_ACTIVE;
-      add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+      add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
       //add_page_to_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
       trace_mm_lru_activate(page);
 
@@ -522,8 +526,8 @@ static void activate_pagevec_lru_move_fn(struct pagevec *pvec,
     }
 	}
   if(lruvec != NULL && pprev_lru >= 0) {
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
   }
  
 //	if (pgdat)
@@ -538,8 +542,8 @@ static void deactivate_file_pagevec_lru_move_fn(struct pagevec *pvec,
 	int i;
 	struct pglist_data *pgdat = NULL;
 	struct lruvec *lruvec;
-  struct lruvec *jwlruvec = NULL;
-	unsigned long flags = 0, jwflags = 0, jwflags_ = 0;
+  struct lruvec *finer_lruvec = NULL;
+	unsigned long flags = 0, finer_flags = 0, finer_flags_ = 0;
   int prev_lru = -1, pprev_lru = -1;
   int lru, file;
   bool active;
@@ -569,51 +573,51 @@ static void deactivate_file_pagevec_lru_move_fn(struct pagevec *pvec,
     active = PageActive(page);
     file = page_is_file_cache(page);
     lru = page_lru_base_type(page);
-    if(jwlruvec != lruvec) {
-      if(jwlruvec != NULL && pprev_lru >= 0) {
-        spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[prev_lru], jwflags_);
+    if(finer_lruvec != lruvec) {
+      if(finer_lruvec != NULL && pprev_lru >= 0) {
+        spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
         if(prev_lru != pprev_lru)
-          spin_unlock_irqrestore(&jwlruvec->jw_lruvec_lock[pprev_lru], jwflags);
+          spin_unlock_irqrestore(&finer_lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
         prev_lru = -1;
         pprev_lru = -1;
       }
-      jwlruvec = lruvec;
+      finer_lruvec = lruvec;
     }
-    if(pprev_lru != jw_get_lru_idx(page, lru + active)) {
+    if(pprev_lru != finer_get_lru_idx(page, lru + active)) {
     //if(pprev_lru != lru + active + NR_LRU_LISTS*(page->idx)) {
       if(lruvec != NULL && prev_lru >= 0){
-        spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
+        spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
         if(prev_lru != pprev_lru)
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
       }
-      pprev_lru = jw_get_lru_idx(page, lru + active);
-      prev_lru = jw_get_lru_idx(page, lru);
+      pprev_lru = finer_get_lru_idx(page, lru + active);
+      prev_lru = finer_get_lru_idx(page, lru);
       //pprev_lru = lru + active + NR_LRU_LISTS*(page->idx);
       //prev_lru = lru + NR_LRU_LISTS*(page->idx);
-      spin_lock_irqsave(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
+      spin_lock_irqsave(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
       if(prev_lru != pprev_lru)
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
     }
 //if(e%10000 == 0)
 //  printk("jw: deactivate_file_pagevec_lru_move_fn [%ld]\n", (int)(current->pid));
 //e++;
  
-    del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, lru+active));
+    del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, lru+active));
     //del_page_from_lru_list(page, lruvec, lru + active + NR_LRU_LISTS*(page->idx));
     ClearPageActive(page);
     ClearPageReferenced(page);
 
-    if(prev_lru != jw_get_lru_idx(page, lru)) {
+    if(prev_lru != finer_get_lru_idx(page, lru)) {
     //if(prev_lru != lru + NR_LRU_LISTS*(page->idx)) {
       if(lruvec != NULL && prev_lru >= 0)
-        spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
-      prev_lru = jw_get_lru_idx(page, lru);
+        spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
+      prev_lru = finer_get_lru_idx(page, lru);
       //prev_lru = lru + NR_LRU_LISTS*(page->idx);
       if(prev_lru != pprev_lru)
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
     }
 
-    add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, lru));
+    add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, lru));
     //add_page_to_lru_list(page, lruvec, lru + NR_LRU_LISTS*(page->idx));
 
     if (PageWriteback(page) || PageDirty(page)) {
@@ -628,8 +632,8 @@ static void deactivate_file_pagevec_lru_move_fn(struct pagevec *pvec,
     update_page_reclaim_stat(lruvec, file, 0);
 	}
   if(lruvec != NULL && pprev_lru >= 0) {
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags_);
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[pprev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags_);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[pprev_lru], finer_flags);
   }
 
 //	if (pgdat)
@@ -664,13 +668,13 @@ static void lazyfree_pagevec_lru_move_fn(struct pagevec *pvec,
 //if(f%10000 == 0)
 //  printk("jw: lazyfree_pagevec_lru_move_fn [%ld]\n", (int)(current->pid));
 //f++;
-      del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, LRU_INACTIVE_ANON + active));
+      del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, LRU_INACTIVE_ANON + active));
       //del_page_from_lru_list(page, lruvec,
       //    LRU_INACTIVE_ANON + active + NR_LRU_LISTS*(page->idx));
       ClearPageActive(page);
       ClearPageReferenced(page);
       ClearPageSwapBacked(page);
-      add_page_to_lru_list(page, lruvec, jw_get_lru_idx(page, LRU_INACTIVE_FILE));
+      add_page_to_lru_list(page, lruvec, finer_get_lru_idx(page, LRU_INACTIVE_FILE));
       //add_page_to_lru_list(page, lruvec, LRU_INACTIVE_FILE + NR_LRU_LISTS*(page->idx));
 
       __count_vm_events(PGLAZYFREE, hpage_nr_pages(page));
@@ -1098,10 +1102,10 @@ void release_pages(struct page **pages, int nr)
 	struct pglist_data *locked_pgdat = NULL;
 	struct lruvec *lruvec;
 	unsigned long uninitialized_var(flags);
- 	unsigned long uninitialized_var(jwflags);
+ 	unsigned long uninitialized_var(finer_flags);
 	unsigned int uninitialized_var(lock_batch);
   int prev_lru = -1;
-  struct lruvec *jwlruvec = NULL;
+  struct lruvec *finer_lruvec = NULL;
   struct page *page;
 
 //struct timespec e_local[2];
@@ -1112,7 +1116,7 @@ void release_pages(struct page **pages, int nr)
 
     if (lruvec && ++lock_batch == SWAP_CLUSTER_MAX) {
       if(prev_lru >= 0) {
-        spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+        spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
         prev_lru = -1;
       }
       lruvec = NULL;
@@ -1126,7 +1130,7 @@ void release_pages(struct page **pages, int nr)
 		if (is_zone_device_page(page)) {
       if (lruvec) {
         if(prev_lru >= 0) {
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
           prev_lru = -1;
         }
         lruvec = NULL;
@@ -1145,7 +1149,7 @@ void release_pages(struct page **pages, int nr)
 		if (PageCompound(page)) {
 			if (lruvec) {
         if(prev_lru >= 0){
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
           prev_lru = -1;
         }
 				lruvec = NULL;
@@ -1164,7 +1168,7 @@ void release_pages(struct page **pages, int nr)
       lruvec = mem_cgroup_page_lruvec(page, page_pgdat(page));
       if (pre_lruvec != lruvec) { 
         if(prev_lru >= 0) {
-          spin_unlock_irqrestore(&pre_lruvec->jw_lruvec_lock[prev_lru], jwflags);  
+          spin_unlock_irqrestore(&pre_lruvec->finer_lruvec_lock[prev_lru], finer_flags);  
           prev_lru = -1;
         }
         lock_batch = 0;
@@ -1173,16 +1177,16 @@ void release_pages(struct page **pages, int nr)
 			VM_BUG_ON_PAGE(!PageLRU(page), page);
 			__ClearPageLRU(page);
 
-      if(prev_lru != jw_get_lru_idx(page, jw_page_off_lru(page))) {
-      //if(prev_lru != jw_page_off_lru(page) + NR_LRU_LISTS*(page->idx)) {
+      if(prev_lru != finer_get_lru_idx(page, finer_page_off_lru(page))) {
+      //if(prev_lru != finer_page_off_lru(page) + NR_LRU_LISTS*(page->idx)) {
         if(prev_lru >= 0)
-          spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
-        prev_lru = jw_get_lru_idx(page, jw_page_off_lru(page));
-        //prev_lru = jw_page_off_lru(page) + NR_LRU_LISTS*(page->idx);
-        spin_lock_irqsave(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+          spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
+        prev_lru = finer_get_lru_idx(page, finer_page_off_lru(page));
+        //prev_lru = finer_page_off_lru(page) + NR_LRU_LISTS*(page->idx);
+        spin_lock_irqsave(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
       }
 			//del_page_from_lru_list(page, lruvec, page_off_lru(page)+NR_LRU_LISTS*(page->idx));
-			del_page_from_lru_list(page, lruvec, jw_get_lru_idx(page, page_off_lru(page)));
+			del_page_from_lru_list(page, lruvec, finer_get_lru_idx(page, page_off_lru(page)));
 		}
 //getrawmonotonic(&g_local[1]);
 //calclock(g_local, &g_t[smp_processor_id()], &g_c[smp_processor_id()]);
@@ -1193,7 +1197,7 @@ void release_pages(struct page **pages, int nr)
 		list_add(&page->lru, &pages_to_free);
 	}
   if(lruvec != NULL && prev_lru >= 0)
-    spin_unlock_irqrestore(&lruvec->jw_lruvec_lock[prev_lru], jwflags);
+    spin_unlock_irqrestore(&lruvec->finer_lruvec_lock[prev_lru], finer_flags);
 
 //	if (locked_pgdat)
 //		spin_unlock_irqrestore(&locked_pgdat->lru_lock, flags);
@@ -1261,7 +1265,7 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
 		 * Use the standard add function to put page_tail on the list,
 		 * but then correct its position so they all end up in order.
 		 */
-    add_page_to_lru_list(page_tail, lruvec, jw_get_lru_idx(page, page_lru(page_tail)));
+    add_page_to_lru_list(page_tail, lruvec, finer_get_lru_idx(page, page_lru(page_tail)));
 		//add_page_to_lru_list(page_tail, lruvec, page_lru(page_tail) + NR_LRU_LISTS*(page->idx));
 		list_head = page_tail->lru.prev;
 		list_move_tail(&page_tail->lru, list_head);

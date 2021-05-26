@@ -66,7 +66,9 @@ static __always_inline void del_page_from_lru_list(struct page *page,
 	update_lru_size(lruvec, lru, page_zonenum(page), -hpage_nr_pages(page));
 }
 
-static enum lru_list jw_get_lru_idx(struct page *page, enum lru_list lru)
+//finer_modi
+//function for finding proper LRU list
+static enum lru_list finer_get_lru_idx(struct page *page, enum lru_list lru)
 {
 // 1&2 together --> kernel panic
 //  if(lru == 2 || lru == 3)
@@ -114,7 +116,9 @@ static __always_inline enum lru_list page_off_lru(struct page *page)
 	return lru;
 }
 
-static __always_inline enum lru_list jw_page_off_lru(struct page *page)
+//finer_modi
+// function finding the target LRU lists
+static __always_inline enum lru_list finer_page_off_lru(struct page *page)
 {
 	enum lru_list lru;
 
